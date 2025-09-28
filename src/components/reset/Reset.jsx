@@ -18,7 +18,7 @@ const Reset = () => {
       />
       <span className="errorAlert hidden">Email not found</span>
 
-      <span className="button" onClick={reset(email)}>
+      <span className="button" onClick={() => reset(email)}>
         Reset
       </span>
 
