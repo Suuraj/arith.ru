@@ -11,10 +11,10 @@ app.use(express.json());
 app.use('/', router);
 
 (async () => {
-	try {
-		await mongoose.connect(secrets.uri);
-		app.listen(port);
-	} catch (err) {
-		console.log(err);
-	}
+  try {
+    await mongoose.connect(secrets.uri);
+    app.listen(port);
+  } catch (err) {
+    console.log(err);
+  }
 })();

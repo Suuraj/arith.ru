@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
-import { setResult } from '../../actions/user';
+import { setResult } from '../../actions/result';
 import styles from './Main.module.css';
 
 const Main = () => {

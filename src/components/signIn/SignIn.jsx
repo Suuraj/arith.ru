@@ -1,62 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { signIn } from '../../actions/user';
-import Input from '../../utils/Input';
+import React, { useEffect, useRef } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../context/AuthProvider';
+import { useNavigate } from 'react-router-dom';
 
 const SignIn = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-
-  const dispatch = useDispatch();
+  const { login } = useAuth();
+  const scriptContainerRef = useRef(null);
   const navigate = useNavigate();
 
-  const handleKeyDown = (e) => {
-    if (e.keyCode == 13) {
-      handleOnClick();
-    }
-  };
-
-  const handleOnClick = () => {
-    dispatch(signIn(username, password));
-  };
-
   useEffect(() => {
-    if (localStorage.getItem('token')) {
-      navigate('/profile');
+    window.onTelegramAuth = async (user) => {
+      try {
+        const res = await axios.post(
+          'https://arith-ru.onrender.com/signin',
+          user,
+        );
+        login(res.data.username, res.data.token);
+        if (!res.data.username) {
+          navigate('/username');
+        } else {
+          navigate('/profile');
+        }
+      } catch (err) {
+        alert('Failed to sign in');
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.async = true;
+
+    script.setAttribute('data-telegram-login', 'arithrubot');
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-radius', '0');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    //script.setAttribute('data-request-access', 'write');
+
+    if (scriptContainerRef.current) {
+      scriptContainerRef.current.appendChild(script);
     }
-  });
+
+    return () => {
+      if (scriptContainerRef.current) {
+        scriptContainerRef.current.innerHTML = '';
+      }
+      delete window.onTelegramAuth;
+    };
+  }, [login]);
 
   return (
     <main>
       <h2>Sign in</h2>
-
-      <Input
-        value={username}
-        setValue={setUsername}
-        type="text"
-        placeholder="Username or email"
-        onKeyDown={handleKeyDown}
-      />
-
-      <Input
-        value={password}
-        setValue={setPassword}
-        type="password"
-        placeholder="Password"
-        onKeyDown={handleKeyDown}
-      />
-
-      <span className="button" onClick={handleOnClick}>
-        Sign in
-      </span>
-
-      <div className="links">
-        <NavLink to="/signup">Sign up</NavLink>
-      </div>
-      <div className="links">
-        <NavLink to="/reset">Reset password</NavLink>
-      </div>
+      <div ref={scriptContainerRef}></div>
     </main>
   );
 };

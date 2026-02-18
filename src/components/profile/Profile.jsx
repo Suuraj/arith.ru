@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import {
   CartesianGrid,
   Line,
@@ -10,19 +8,17 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getResults } from '../../actions/user';
-import { userSignedOut } from '../../store/userSlice';
+import { getResults } from '../../actions/result';
 import Input from '../../utils/Input';
 import styles from './Profile.module.css';
+import { useAuth } from '../../context/AuthProvider';
 
 const Profile = () => {
-  const username = (state) => state.user.username;
+  const { username, logout } = useAuth();
   const [questionCount, setQuestionCount] = useState(
     localStorage.getItem('questionCount') ?? 50,
   );
   const results = JSON.parse(localStorage.getItem('results' + questionCount));
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
 
   const formatDate = (tickItem) => {
     if (tickItem === 'auto') {
@@ -95,14 +91,8 @@ const Profile = () => {
           <Line dataKey="result" />
         </LineChart>
       </ResponsiveContainer>
-      <span
-        className="button"
-        onClick={() => {
-          dispatch(userSignedOut());
-          navigate('/signin');
-        }}
-      >
-        Log Out
+      <span className="button" onClick={logout}>
+        Log out
       </span>
     </main>
   );

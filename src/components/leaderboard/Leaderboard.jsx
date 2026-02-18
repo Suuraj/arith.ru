@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
-import { getLeaders } from '../../actions/user';
+import { getLeaders } from '../../actions/result';
 import styles from './Leaderboard.module.css';
+import { useAuth } from '../../context/AuthProvider';
 
 const Leader = (props) => {
-  const username = useSelector((state) => state.user.username);
+  const { username } = useAuth();
 
   if (!props.leaders) {
     return null;

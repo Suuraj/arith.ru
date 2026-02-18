@@ -1,238 +1,209 @@
 const User = require('./user');
 const Result = require('./result');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const sendEmail = require('./mailer');
 const secrets = require('/etc/secrets/secrets');
-const { validationResult } = require('express-validator');
+const crypto = require('crypto');
 
 class controller {
-	async signup(req, res) {
-		try {
-			const errors = validationResult(req);
-			if (!errors.isEmpty()) {
-				return res.status(400).json({ message: 'Invalid request', errors });
-			}
+  async sigin(req, res) {
+    try {
+      const { hash, ...data } = req.body;
+      if (!hash) {
+        return res.status(400).json({ message: 'No hash provided' });
+      }
 
-			const username = req.body.username.toLowerCase();
-			const email = req.body.email.toLowerCase();
-			const password = req.body.password;
+      const secretKey = crypto
+        .createHash('sha256')
+        .update(secrets.botToken)
+        .digest();
 
-			let candidate = await User.findOne({ username });
-			if (candidate) {
-				return res
-					.status(400)
-					.json({ message: `Username '${username}' already taken` });
-			}
+      const dataCheckString = Object.keys(data)
+        .sort()
+        .map((key) => `${key}=${data[key]}`)
+        .join('\n');
 
-			candidate = await User.findOne({ email });
-			if (candidate) {
-				return res
-					.status(400)
-					.json({ message: `Another account is using '${email}'` });
-			}
+      const hmac = crypto
+        .createHmac('sha256', secretKey)
+        .update(dataCheckString)
+        .digest('hex');
 
-			const hash = bcrypt.hashSync(password, 9);
-			await new User({ username, email, password: hash }).save();
+      if (hmac !== hash) {
+        return res.status(401).json({ message: 'Data is NOT from Telegram' });
+      }
 
-			return res.json({ message: 'User registered' });
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (currentTime - data.auth_date > 86400) {
+        return res.status(401).json({ message: 'Data is outdated' });
+      }
 
-	async sigin(req, res) {
-		try {
-			const errors = validationResult(req);
-			if (!errors.isEmpty()) {
-				return res.status(400).json({ message: 'Invalid request', errors });
-			}
+      const telegramId = data.id;
+      let user = await User.findOne({ telegramId });
+      if (!user) {
+        await new User({ telegramId, username: telegramId }).save();
 
-			const username = req.body.username.toLowerCase();
-			const password = req.body.password;
+        const token = jwt.sign({ username: telegramId }, secrets.jwtSecret, {
+          expiresIn: '3d',
+        });
 
-			const user = await User.findOne({
-				$or: [{ username: username }, { email: username }],
-			});
+        return res.json({
+          token,
+          username: null,
+        });
+      }
 
-			if (!user) {
-				return res.status(404).json({ message: 'Account not found' });
-			}
+      const token = jwt.sign({ username: user.username }, secrets.jwtSecret, {
+        expiresIn: '3d',
+      });
 
-			const isPwdValid = bcrypt.compareSync(password, user.password);
-			if (!isPwdValid) {
-				return res.status(400).json({ message: 'Wrong password' });
-			}
+      return res.json({
+        token,
+        username: user.username,
+      });
+    } catch (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err.message });
+    }
+  }
 
-			const token = jwt.sign({ username: user.username }, secrets.jwtSecret, {
-				expiresIn: '3d',
-			});
+  async username(req, res) {
+    try {
+      const { username: newUsername } = req.body;
+      const oldUsername = req.username;
 
-			return res.json({
-				token,
-				username: user.username,
-			});
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      if (!/^[a-zA-Z]{3,15}$/.test(newUsername)) {
+        return res.status(400).json({ message: 'Invalid username format' });
+      }
 
-	async reset(req, res) {
-		try {
-			const errors = validationResult(req);
-			if (!errors.isEmpty()) {
-				return res.status(400).json({ message: 'Invalid request', errors });
-			}
+      const existing = await User.findOne({ username: newUsername });
+      if (existing) {
+        return res.status(400).json({ message: 'Username already taken' });
+      }
 
-			const email = req.body.email.toLowerCase();
-			const user = await User.findOne({ email: email });
+      const user = await User.findOneAndUpdate(
+        { username: oldUsername },
+        { username: newUsername },
+        { new: true },
+      );
 
-			if (!user) {
-				return res.status(404).json({ message: 'Email not found' });
-			}
+      if (!user) return res.status(404).json({ message: 'User not found' });
 
-			const token = jwt.sign({ email: user.email }, secrets.jwtSecret, {
-				expiresIn: '1h',
-			});
+      await Result.updateMany(
+        { username: oldUsername },
+        { username: newUsername },
+      );
 
-			await sendEmail(email, `https://arith.ru/password?token=${token}`);
+      const token = jwt.sign({ username: user.username }, secrets.jwtSecret, {
+        expiresIn: '3d',
+      });
 
-			return res.json({ message: 'Password reset link sent to your email' });
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      return res.json({ token, username: user.username });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
 
-	async password(req, res) {
-		try {
-			const errors = validationResult(req);
-			if (!errors.isEmpty()) {
-				return res.status(400).json({ message: 'Invalid request', errors });
-			}
+  async auth(req, res) {
+    try {
+      const token = jwt.sign({ username: req.username }, secrets.jwtSecret, {
+        expiresIn: '3d',
+      });
 
-			const { email } = jwt.verify(req.body.token, secrets.jwtSecret);
-			const passwordHash = bcrypt.hashSync(req.body.password, 9);
+      return res.json({
+        token,
+        username: req.username,
+      });
+    } catch (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err.message });
+    }
+  }
 
-			await User.findOneAndUpdate({ email: email }, { password: passwordHash });
+  async get(req, res) {
+    try {
+      const results = await Result.find({
+        username: req.username,
+        questionCount: +req.query.questionCount,
+      }).select('result date -_id');
 
-			return res.json({ message: 'Password changed' });
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      return res.json(results);
+    } catch (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err.message });
+    }
+  }
 
-	async auth(req, res) {
-		try {
-			const user = await User.findOne({ username: req.username });
-			const token = jwt.sign({ username: user.username }, secrets.jwtSecret, {
-				expiresIn: '3d',
-			});
+  async set(req, res) {
+    try {
+      const username = req.username;
+      const date = req.body.date;
+      const result = req.body.result;
+      const questionCount = req.body.questionCount;
 
-			return res.json({
-				token,
-				username: user.username,
-			});
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      await new Result({
+        username,
+        questionCount,
+        result,
+        date,
+      }).save();
 
-	async get(req, res) {
-		try {
-			const results = await Result.find({
-				username: req.username,
-				questionCount: +req.query.questionCount,
-			}).select('result date -_id');
+      return res;
+    } catch (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err.message });
+    }
+  }
 
-			return res.json(results);
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+  async leaders(req, res) {
+    try {
+      const questionCount = +req.query.questionCount;
+      const leaders = await Result.aggregate([
+        {
+          $match: {
+            questionCount: questionCount,
+          },
+        },
+        {
+          $group: {
+            _id: '$username',
+            result: {
+              $min: {
+                result: '$result',
+                date: '$date',
+                username: '$username',
+              },
+            },
+          },
+        },
+        {
+          $sort: {
+            result: 1,
+            date: 1,
+          },
+        },
+        {
+          $replaceRoot: {
+            newRoot: '$result',
+          },
+        },
+      ]);
 
-	async set(req, res) {
-		try {
-			const username = req.username;
-			const date = req.body.date;
-			const result = req.body.result;
-			const questionCount = req.body.questionCount;
-
-			await new Result({
-				username,
-				questionCount,
-				result,
-				date,
-			}).save();
-
-			return res;
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
-
-	async leaders(req, res) {
-		try {
-			const questionCount = +req.query.questionCount;
-			const leaders = await Result.aggregate([
-				{
-					$match: {
-						questionCount: questionCount,
-					},
-				},
-				{
-					$group: {
-						_id: '$username',
-						result: {
-							$min: {
-								result: '$result',
-								date: '$date',
-								username: '$username',
-							},
-						},
-					},
-				},
-				{
-					$sort: {
-						result: 1,
-						date: 1,
-					},
-				},
-				{
-					$replaceRoot: {
-						newRoot: '$result',
-					},
-				},
-			]);
-
-			return res.json(leaders);
-		} catch (err) {
-			console.log(err);
-			return res
-				.status(500)
-				.json({ error: 'Internal Server Error', details: err.message });
-		}
-	}
+      return res.json(leaders);
+    } catch (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err.message });
+    }
+  }
 }
 
 module.exports = new controller();

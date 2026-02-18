@@ -1,10 +1,10 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
 import { NavLink } from 'react-router-dom';
 import styles from './Menu.module.css';
+import { useAuth } from '../../context/AuthProvider';
 
 const Menu = () => {
-  const isAuth = useSelector((state) => state.user.isAuth);
+  const { isAuth } = useAuth();
 
   return (
     <nav id={styles.menu}>

@@ -1,41 +1,67 @@
-import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
-import { auth } from './actions/user';
+import React from 'react';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  Navigate,
+} from 'react-router-dom';
 import Leaderboard from './components/leaderboard/Leaderboard';
 import Main from './components/main/Main';
 import Menu from './components/menu/Menu';
 import Profile from './components/profile/Profile';
 import SignIn from './components/signIn/SignIn';
-import SignUp from './components/signUp/SignUp';
-import Reset from './components/reset/Reset';
+import { AuthProvider, useAuth } from './context/AuthProvider';
+import Username from './components/Username/Username';
+
+const ProtectedRoute = ({ children }) => {
+  const { username, isAuth } = useAuth();
+  if (!isAuth) return <Navigate to="/signin" />;
+  if (!username) return <Navigate to="/username" />;
+  if (username) return <Navigate to="/profile" />;
+  return children;
+};
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: (
+      <>
+        <header>
+          <Menu />
+        </header>
+        <Outlet />
+        <footer></footer>
+      </>
+    ),
+    children: [
+      { index: true, element: <Main /> },
+      { path: 'leaderboard', element: <Leaderboard /> },
+      { path: 'signin', element: <SignIn /> },
+      {
+        path: 'profile',
+        element: (
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'username',
+        element: (
+          <ProtectedRoute>
+            <Username />
+          </ProtectedRoute>
+        ),
+      },
+    ],
+  },
+]);
 
 function App() {
-  const dispatch = useDispatch();
-  const isAuth = useSelector((state) => state.user.isAuth);
-
-  useEffect(() => {
-    dispatch(auth());
-  });
-
   return (
-    <Router>
-      <header>
-        <Menu />
-      </header>
-      <Routes>
-        <Route exact path="/" element={<Main />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
-        {isAuth
-          ? <Route path="/profile" element={<Profile />} />
-          : <>
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/reset" element={<Reset />} />
-            </>}
-      </Routes>
-      <footer></footer>
-    </Router>
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   );
 }
 
