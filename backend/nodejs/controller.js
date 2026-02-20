@@ -68,7 +68,10 @@ class controller {
         return res.status(400).json({ message: 'Invalid username format' });
       }
 
-      const existing = await User.findOne({ username: newUsername });
+      const existing = await User.findOne({ username: newUsername }).collation({
+        locale: 'en',
+        strength: 2,
+      });
       if (existing) {
         return res.status(400).json({ message: 'Username already taken' });
       }
@@ -76,7 +79,7 @@ class controller {
       const user = await User.findOneAndUpdate(
         { username: oldUsername },
         { username: newUsername },
-        { new: true },
+        { returnDocument: 'after' },
       );
 
       if (!user) return res.status(404).json({ message: 'User not found' });
