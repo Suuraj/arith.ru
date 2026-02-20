@@ -26,9 +26,11 @@ export const getResults = async (questionCount) => {
     })
     .then((res) => {
       localStorage.setItem('results' + questionCount, JSON.stringify(res.data));
+      return res.data;
     })
     .catch((err) => {
       //console.log(err.response.data);
+      return [];
     });
 };
 

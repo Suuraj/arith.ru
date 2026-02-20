@@ -39,16 +39,8 @@ class controller {
       const telegramId = data.id;
       let user = await User.findOne({ telegramId });
       if (!user) {
-        await new User({ telegramId, username: telegramId }).save();
-
-        const token = jwt.sign({ username: telegramId }, secrets.jwtSecret, {
-          expiresIn: '3d',
-        });
-
-        return res.json({
-          token,
-          username: null,
-        });
+        user = new User({ telegramId, username: telegramId });
+        await user.save();
       }
 
       const token = jwt.sign({ username: user.username }, secrets.jwtSecret, {

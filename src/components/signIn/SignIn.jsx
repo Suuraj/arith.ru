@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router-dom';
 
 const SignIn = () => {
   const { login } = useAuth();
-  const scriptContainerRef = useRef(null);
   const navigate = useNavigate();
+  const scriptContainerRef = useRef(null);
 
   useEffect(() => {
     window.onTelegramAuth = async (user) => {
@@ -16,10 +16,10 @@ const SignIn = () => {
           user,
         );
         login(res.data.username, res.data.token);
-        if (!res.data.username) {
-          navigate('/username');
-        } else {
+        if (/^[a-zA-Z]{3,15}$/.test(res.data.username)) {
           navigate('/profile');
+        } else {
+          navigate('/username');
         }
       } catch (err) {
         alert('Failed to sign in');

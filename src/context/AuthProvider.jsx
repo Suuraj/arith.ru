@@ -25,16 +25,13 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      try {
-        const res = await axios.get('https://arith-ru.onrender.com/auth', {
+      await axios
+        .get('https://arith-ru.onrender.com/auth', {
           headers: { Authorization: `Bearer ${token}` },
-        });
-        setUsername(res.data.username);
-      } catch (err) {
-        logout();
-      } finally {
-        setLoading(false);
-      }
+        })
+        .then((res) => setUsername(res.data.username))
+        .catch(() => logout())
+        .finally(() => setLoading(false));
     };
 
     initAuth();

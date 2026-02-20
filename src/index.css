@@ -12,6 +12,15 @@ input {
   display: block;
 }
 
+button {
+  border: none;
+  background-color: #434343;
+  color: white;
+  cursor: pointer;
+  line-height: 40px;
+  width: 100px;
+}
+
 .button {
   display: inline-block;
   background-color: #434343;
@@ -26,21 +35,20 @@ a {
   color: black;
 }
 
-.links {
-  margin-top: 10px;
-}
-
-.hidden {
-  display: none;
-}
-
 .errorInput {
-  border: 1px solid red;
+  border: solid red;
 }
 
 .errorAlert {
+  display: block;
+  margin-bottom: 10px;
+  visibility: hidden;
   font-size: 0.8em;
   color: red;
+}
+
+.errorAlert.visible {
+  visibility: visible;
 }
 
 .recharts-responsive-container {

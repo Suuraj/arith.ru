@@ -15,10 +15,10 @@ import { useAuth } from '../../context/AuthProvider';
 
 const Profile = () => {
   const { username, logout } = useAuth();
+  const [results, setResults] = useState([]);
   const [questionCount, setQuestionCount] = useState(
     localStorage.getItem('questionCount') ?? 50,
   );
-  const results = JSON.parse(localStorage.getItem('results' + questionCount));
 
   const formatDate = (tickItem) => {
     if (tickItem === 'auto') {
@@ -49,13 +49,17 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    if (
-      !localStorage.getItem('results' + questionCount) ||
-      localStorage.getItem('results' + questionCount) == '[]'
-    ) {
-      getResults(questionCount);
-    }
-  });
+    const fetchData = async () => {
+      const cachedData = localStorage.getItem('results' + questionCount);
+      if (!cachedData || cachedData === '[]') {
+        const data = await getResults(questionCount);
+        setResults(data || []);
+      } else {
+        setResults(JSON.parse(cachedData));
+      }
+    };
+    fetchData();
+  }, [questionCount]);
 
   return (
     <main id={styles.main}>
